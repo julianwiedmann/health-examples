@@ -11,12 +11,13 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <linux/tcp.h>
+#include <net/if.h>
 
 #define MARK_MAGIC_HEALTH 0x0D00
 
 int main(int argc, char **argv)
 {
-	int ret, fd, i, cnt = 0, mark = MARK_MAGIC_HEALTH, retries = 2;
+	int ifindex, ret, fd, i, cnt = 0, mark = MARK_MAGIC_HEALTH, retries = 2;
 	struct timeval tmo = {
 		.tv_sec		= 1,
 	};
@@ -65,7 +66,21 @@ int main(int argc, char **argv)
 			goto out;
 		}
 
-		printf("Bound health checker to device: %s\n", argv[1]);
+		ret = if_nametoindex(argv[1]);
+		if (ret == 0) {
+			perror("nametoindex");
+			goto out;
+		}
+
+		ifindex = ret;
+		ret = setsockopt(fd, SOL_SOCKET, SO_BINDTOIFINDEX,
+				 &ifindex, sizeof(ifindex));
+		if (ret < 0) {
+			perror("setsockopt(SO_BINDTOIFINDEX)");
+			goto out;
+		}
+
+		printf("Bound health checker to device: %s (ifindex %u)\n", argv[1], ifindex);
 	}
 
 	ret = setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
